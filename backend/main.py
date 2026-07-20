@@ -9,10 +9,12 @@ import os
 import json
 import asyncio
 import datetime
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -433,6 +435,9 @@ async def on_startup():
         asyncio.create_task(telegram_client.client.run_until_disconnected())
 
 
-@app.get("/")
-def root():
-    return {"status": "Qalqan API работает"}
+# Раздаём фронтенд (папка ../frontend) с того же адреса, что и API —
+# теперь дашборд открывается просто по http://127.0.0.1:8000, без
+# необходимости вручную искать и открывать файл index.html.
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
