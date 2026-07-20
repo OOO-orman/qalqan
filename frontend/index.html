@@ -144,6 +144,17 @@
 
   .login-box { max-width: 420px; margin: 60px auto; background: white; padding: 28px; border-radius: var(--radius); }
   .login-box input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 14px; }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; height: auto; }
+    .sidebar { max-height: 260px; border-right: none; border-bottom: 1px solid var(--line); }
+    .main { padding: 16px; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .topbar { padding: 14px 16px; flex-wrap: wrap; gap: 8px; }
+    .brand { font-size: 18px; }
+    .login-box { margin: 24px 16px; max-width: none; }
+    .msg { max-width: 90%; }
+  }
 </style>
 </head>
 <body>
@@ -151,6 +162,21 @@
 <div class="topbar">
   <div class="brand"><span class="mark">Q</span> Qalqan — панель мониторинга</div>
   <div class="status-pill" id="statusPill">проверка подключения...</div>
+</div>
+
+<div id="setupScreen" style="display:none">
+  <div class="login-box">
+    <h2>Первоначальная настройка Qalqan</h2>
+    <p style="color:var(--muted); font-size:14px">
+      Это разовая настройка — нужно указать данные приложения Telegram
+      (получаются один раз на <a href="https://my.telegram.org" target="_blank">my.telegram.org</a> →
+      "API development tools"). Дальше это не потребуется — только вход по номеру телефона.
+    </p>
+    <input id="setupApiId" placeholder="API_ID (число)">
+    <input id="setupApiHash" placeholder="API_HASH">
+    <button class="btn" onclick="saveAppConfig()">Сохранить и продолжить</button>
+    <div id="setupMsg" style="color:var(--danger); font-size:13px; margin-top:8px"></div>
+  </div>
 </div>
 
 <div id="loginScreen" style="display:none">
@@ -202,6 +228,16 @@ async function api(path, opts) {
 
 async function checkStatus() {
   try {
+    const cfg = await api('/telegram/app-config-status');
+    if (!cfg.configured) {
+      document.getElementById('statusPill').textContent = 'Требуется настройка';
+      document.getElementById('setupScreen').style.display = 'block';
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('mainLayout').style.display = 'none';
+      return;
+    }
+    document.getElementById('setupScreen').style.display = 'none';
+
     const s = await api('/telegram/status');
     if (s.authorized) {
       document.getElementById('statusPill').textContent = 'Telegram подключён';
@@ -216,6 +252,21 @@ async function checkStatus() {
     }
   } catch (e) {
     document.getElementById('statusPill').textContent = 'Backend недоступен';
+  }
+}
+
+async function saveAppConfig() {
+  const api_id = document.getElementById('setupApiId').value.trim();
+  const api_hash = document.getElementById('setupApiHash').value.trim();
+  if (!api_id || !api_hash) {
+    document.getElementById('setupMsg').textContent = 'Заполните оба поля';
+    return;
+  }
+  try {
+    await api('/telegram/configure-app', { method: 'POST', body: JSON.stringify({ api_id, api_hash }) });
+    checkStatus();
+  } catch (e) {
+    document.getElementById('setupMsg').textContent = 'Ошибка: ' + e.message;
   }
 }
 
