@@ -209,6 +209,32 @@ class ConfirmCodeBody(BaseModel):
     password: Optional[str] = None
 
 
+class AppConfigBody(BaseModel):
+    api_id: str
+    api_hash: str
+    phone: Optional[str] = None
+
+
+@app.get("/telegram/app-config-status")
+def telegram_app_config_status():
+    return {"configured": telegram_client.app_credentials_configured()}
+
+
+@app.post("/telegram/configure-app")
+def telegram_configure_app(body: AppConfigBody):
+    """
+    Сохраняет TELEGRAM_API_ID / TELEGRAM_API_HASH (и телефон, если передан) в .env
+    прямо с сайта, без ручного редактирования файлов. Эти значения — это ключ
+    ПРИЛОЖЕНИЯ Qalqan (получаются один раз на my.telegram.org), их достаточно
+    настроить один раз для всей системы.
+    """
+    try:
+        telegram_client.save_app_credentials(body.api_id, body.api_hash, body.phone or "")
+    except Exception as e:
+        raise HTTPException(400, f"Не удалось сохранить настройки: {e}")
+    return {"ok": True}
+
+
 @app.get("/telegram/status")
 async def telegram_status():
     return {"authorized": await telegram_client.is_authorized()}
@@ -218,6 +244,8 @@ async def telegram_status():
 async def telegram_request_code(body: RequestCodeBody):
     try:
         phone_code_hash = await telegram_client.request_login_code(body.phone)
+    except telegram_client.NotConfiguredError as e:
+        raise HTTPException(409, str(e))
     except Exception as e:
         raise HTTPException(400, str(e))
     return {"phone_code_hash": phone_code_hash}
@@ -231,7 +259,7 @@ async def telegram_confirm_code(body: ConfirmCodeBody):
             phone_code_hash=body.phone_code_hash, password=body.password,
         )
         await telegram_client.start_listening()
-        asyncio.create_task(telegram_client.client.run_until_disconnected())
+        asyncio.create_task(telegram_client.get_client().run_until_disconnected())
     except Exception as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "user_id": me.id, "username": me.username}
@@ -432,7 +460,7 @@ async def on_startup():
     init_db()
     if await telegram_client.is_authorized():
         await telegram_client.start_listening()
-        asyncio.create_task(telegram_client.client.run_until_disconnected())
+        asyncio.create_task(telegram_client.get_client().run_until_disconnected())
 
 
 # Раздаём фронтенд (папка ../frontend) с того же адреса, что и API —
