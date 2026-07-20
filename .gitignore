@@ -1,0 +1,7 @@
+backend/.env
+backend/*.db
+backend/qalqan_session.session
+backend/venv/
+backend/__pycache__/
+backend/agents/__pycache__/
+*.pyc

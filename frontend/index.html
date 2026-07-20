@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qalqan — панель мониторинга</title>
+<style>
+  :root {
+    --navy: #0B1250;
+    --navy-2: #141c66;
+    --paper: #F5F6FA;
+    --white: #ffffff;
+    --ink: #0B1250;
+    --muted: #6b7199;
+    --danger: #E4483C;
+    --warn: #F0A93B;
+    --safe: #2FAE6B;
+    --line: #e2e4f0;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .topbar {
+    background: var(--navy);
+    color: white;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .brand {
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand .mark {
+    background: white; color: var(--navy);
+    border-radius: 8px; padding: 2px 9px;
+    font-size: 20px;
+  }
+  .status-pill {
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+  }
+  .status-pill.online { background: rgba(47,174,107,0.25); }
+  .layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    height: calc(100vh - 64px);
+  }
+  .sidebar {
+    background: white;
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+  }
+  .sidebar-header {
+    padding: 16px 18px 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .conv-item {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .conv-item:hover { background: #f1f2fa; }
+  .conv-item.active { background: #e9ebfa; border-left: 4px solid var(--navy); }
+  .conv-name { font-weight: 700; font-size: 15px; }
+  .conv-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .risk-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 9px;
+    border-radius: 999px;
+    color: white;
+    margin-top: 6px;
+  }
+  .risk-0, .risk-1, .risk-2, .risk-3 { background: var(--safe); }
+  .risk-4, .risk-5, .risk-6 { background: var(--warn); }
+  .risk-7, .risk-8, .risk-9, .risk-10 { background: var(--danger); }
+
+  .main { padding: 24px 32px; overflow-y: auto; }
+  .empty-state { color: var(--muted); text-align: center; margin-top: 100px; font-size: 15px; }
+
+  .conv-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 18px;
+  }
+  .conv-title { font-size: 24px; font-weight: 900; }
+  .conv-sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .btn {
+    background: var(--navy); color: white; border: none;
+    padding: 10px 18px; border-radius: 10px; font-weight: 700;
+    cursor: pointer; font-size: 14px;
+  }
+  .btn:hover { background: var(--navy-2); }
+  .btn.secondary { background: white; color: var(--navy); border: 1.5px solid var(--navy); }
+  .btn.small { padding: 6px 12px; font-size: 12px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+
+  .thread { background: white; border-radius: var(--radius); padding: 18px; }
+  .msg { max-width: 75%; margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.45; }
+  .msg.incoming { background: #f1f2fa; margin-right: auto; border-bottom-left-radius: 2px; }
+  .msg.suggested { background: #FFF4DE; border: 1.5px dashed var(--warn); margin-left: auto; border-bottom-right-radius: 2px; }
+  .msg.sent, .msg.edited_sent { background: var(--navy); color: white; margin-left: auto; border-bottom-right-radius: 2px; }
+  .msg.skipped { background: #f1f2fa; opacity: 0.5; text-decoration: line-through; margin-left: auto; }
+  .msg-actions { margin-top: 8px; display: flex; gap: 8px; }
+  .msg-edit { width: 100%; border-radius: 8px; border: 1px solid var(--line); padding: 8px; font-size: 13px; margin-bottom: 6px; font-family: inherit; }
+
+  .panel { background: white; border-radius: var(--radius); padding: 16px; margin-bottom: 18px; }
+  .panel h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .entity-row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+  .entity-type { color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 11px; }
+  .link-item { font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .flag { font-size: 13px; padding: 4px 0; }
+  .report-box { white-space: pre-wrap; font-family: monospace; font-size: 12.5px; background: #f7f8fc; padding: 14px; border-radius: 10px; max-height: 400px; overflow-y: auto; }
+
+  .danger-banner {
+    background: var(--danger); color: white; font-weight: 800;
+    padding: 14px 18px; border-radius: 12px; margin-bottom: 18px;
+    display: flex; align-items: center; gap: 10px; font-size: 15px;
+  }
+  .contact-row { display: flex; gap: 8px; margin-top: 8px; }
+  .contact-row input { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid var(--line); font-size: 13px; }
+  .send-results { font-size: 13px; margin-top: 10px; }
+  .send-results .ok { color: var(--safe); font-weight: 700; }
+  .send-results .err { color: var(--danger); font-weight: 700; }
+
+  .login-box { max-width: 420px; margin: 60px auto; background: white; padding: 28px; border-radius: var(--radius); }
+  .login-box input { width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--line); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="mark">Q</span> Qalqan — панель мониторинга</div>
+  <div class="status-pill" id="statusPill">проверка подключения...</div>
+</div>
+
+<div id="loginScreen" style="display:none">
+  <div class="login-box">
+    <h2>Подключение Telegram-аккаунта</h2>
+    <p style="color:var(--muted); font-size:14px">Введите номер телефона аккаунта-приманки, к которому подключена система.</p>
+    <input id="phoneInput" placeholder="+7XXXXXXXXXX">
+    <button class="btn" onclick="requestCode()">Получить код</button>
+    <div id="codeSection" style="display:none; margin-top:14px">
+      <input id="codeInput" placeholder="Код из Telegram">
+      <input id="passInput" placeholder="Пароль 2FA (если включён)" type="password">
+      <button class="btn" onclick="confirmCode()">Подтвердить</button>
+    </div>
+    <div id="loginMsg" style="color:var(--danger); font-size:13px; margin-top:8px"></div>
+  </div>
+</div>
+
+<div class="layout" id="mainLayout" style="display:none">
+  <div class="sidebar">
+    <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center">
+      <span>Активные переписки</span>
+    </div>
+    <div style="padding: 0 18px 12px">
+      <button class="btn secondary small" id="importHistoryBtn" onclick="importHistory()" style="width:100%">
+        Импортировать переписки за сутки
+      </button>
+    </div>
+    <div id="convList"></div>
+  </div>
+  <div class="main" id="mainPanel">
+    <div class="empty-state">Выберите переписку слева, чтобы увидеть детали</div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://127.0.0.1:8000'; // адрес backend-сервера. Если запускаете uvicorn на другом порту/хосте — поменяйте здесь.
+let currentConvId = null;
+let phoneCodeHash = null;
+let phoneNumber = null;
+
+async function api(path, opts) {
+  const res = await fetch(API_BASE + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function checkStatus() {
+  try {
+    const s = await api('/telegram/status');
+    if (s.authorized) {
+      document.getElementById('statusPill').textContent = 'Telegram подключён';
+      document.getElementById('statusPill').classList.add('online');
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('mainLayout').style.display = 'grid';
+      loadConversations();
+      connectWs();
+    } else {
+      document.getElementById('statusPill').textContent = 'Telegram не подключён';
+      document.getElementById('loginScreen').style.display = 'block';
+    }
+  } catch (e) {
+    document.getElementById('statusPill').textContent = 'Backend недоступен';
+  }
+}
+
+async function requestCode() {
+  phoneNumber = document.getElementById('phoneInput').value.trim();
+  try {
+    const r = await api('/telegram/request-code', { method: 'POST', body: JSON.stringify({ phone: phoneNumber }) });
+    phoneCodeHash = r.phone_code_hash;
+    document.getElementById('codeSection').style.display = 'block';
+  } catch (e) {
+    document.getElementById('loginMsg').textContent = 'Ошибка: ' + e.message;
+  }
+}
+
+async function confirmCode() {
+  const code = document.getElementById('codeInput').value.trim();
+  const password = document.getElementById('passInput').value.trim();
+  try {
+    await api('/telegram/confirm-code', {
+      method: 'POST',
+      body: JSON.stringify({ phone: phoneNumber, code, phone_code_hash: phoneCodeHash, password: password || null }),
+    });
+    checkStatus();
+  } catch (e) {
+    document.getElementById('loginMsg').textContent = 'Ошибка: ' + e.message;
+  }
+}
+
+function riskClass(level) { return 'risk-' + Math.min(10, Math.max(0, level || 0)); }
+
+let highRiskThreshold = 7;
+
+async function loadConversations() {
+  const data = await api('/conversations');
+  highRiskThreshold = data.high_risk_threshold ?? 7;
+  const convs = data.conversations;
+  const list = document.getElementById('convList');
+  list.innerHTML = '';
+  convs.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'conv-item' + (c.id === currentConvId ? ' active' : '');
+    div.onclick = () => openConversation(c.id);
+    const dangerMark = (c.risk_level >= highRiskThreshold) ? ' ⚠️' : '';
+    div.innerHTML = `
+      <div class="conv-name">${c.tg_display_name || c.tg_username || 'Без имени'}${dangerMark}</div>
+      <div class="conv-meta">@${c.tg_username || '—'}</div>
+      <div class="risk-badge ${riskClass(c.risk_level)}">Риск ${c.risk_level}/10 · ${c.scam_type || 'анализ...'}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+async function importHistory() {
+  const btn = document.getElementById('importHistoryBtn');
+  btn.disabled = true;
+  btn.textContent = 'Импортирую...';
+  try {
+    const r = await api('/telegram/import-history', { method: 'POST' });
+    alert(`Импортировано переписок: ${r.conversations_imported}, сообщений: ${r.messages_imported}`);
+    loadConversations();
+  } catch (e) {
+    alert('Ошибка импорта: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Импортировать историю переписок';
+  }
+}
+
+async function openConversation(id) {
+  currentConvId = id;
+  loadConversations();
+  const conv = await api(`/conversations/${id}`);
+  const main = document.getElementById('mainPanel');
+
+  const messagesHtml = conv.messages.map(m => {
+    if (m.status === 'suggested') {
+      return `<div class="msg suggested">
+        <div>${escapeHtml(m.text)}</div>
+        <textarea class="msg-edit" id="edit-${m.id}" style="display:none">${escapeHtml(m.text)}</textarea>
+        <div class="msg-actions">
+          <button class="btn small" onclick="sendMessage(${id}, ${m.id}, null)">Отправить как есть</button>
+          <button class="btn small secondary" onclick="toggleEdit(${m.id})">Редактировать</button>
+          <button class="btn small secondary" onclick="sendEdited(${id}, ${m.id})" id="sendEditBtn-${m.id}" style="display:none">Отправить правку</button>
+          <button class="btn small secondary" onclick="skipMessage(${id}, ${m.id})">Пропустить</button>
+        </div>
+      </div>`;
+    }
+    const cls = m.direction === 'incoming' ? 'incoming' : m.status;
+    return `<div class="msg ${cls}">${escapeHtml(m.text)}</div>`;
+  }).join('');
+
+  const entitiesHtml = conv.entities.length
+    ? conv.entities.map(e => `<div class="entity-row"><span class="entity-type">${e.type}</span><span>${escapeHtml(e.value)}</span></div>`).join('')
+    : '<div style="color:var(--muted); font-size:13px">Пока ничего не найдено</div>';
+
+  const linksHtml = conv.linked_conversations.length
+    ? conv.linked_conversations.map(l => `<div class="link-item">→ Переписка №${l.conversation_id} (${l.matched_on.length} совпадений)</div>`).join('')
+    : '<div style="color:var(--muted); font-size:13px">Связей не найдено</div>';
+
+  const flagsHtml = conv.red_flags.length
+    ? conv.red_flags.map(f => `<div class="flag">⚠️ ${escapeHtml(f)}</div>`).join('')
+    : '<div style="color:var(--muted); font-size:13px">—</div>';
+
+  const isHighRisk = conv.risk_level >= (conv.high_risk_threshold ?? 7);
+  const dangerBanner = isHighRisk
+    ? `<div class="danger-banner">⚠️ ВЫСОКИЙ РИСК МОШЕННИЧЕСТВА (${conv.risk_level}/10) — рекомендуется сформировать и отправить отчёт админу</div>`
+    : '';
+
+  main.innerHTML = `
+    ${dangerBanner}
+    <div class="conv-header">
+      <div>
+        <div class="conv-title">${conv.tg_display_name || conv.tg_username || 'Без имени'}</div>
+        <div class="conv-sub">@${conv.tg_username || '—'} · Риск ${conv.risk_level}/10 · ${conv.scam_type || 'анализируется'}</div>
+      </div>
+      <button class="btn" onclick="showReport(${id})">Сформировать отчёт</button>
+    </div>
+    <div class="grid-2">
+      <div class="thread">${messagesHtml || '<div class="empty-state">Пока нет сообщений</div>'}</div>
+      <div>
+        <div class="panel"><h3>Признаки мошенничества</h3>${flagsHtml}</div>
+        <div class="panel"><h3>Цифровые следы</h3>${entitiesHtml}</div>
+        <div class="panel"><h3>Связанные дела</h3>${linksHtml}</div>
+        <div class="panel">
+          <h3>Контакт родителей (по желанию)</h3>
+          <div class="contact-row">
+            <input id="parentContact" placeholder="telegram username, напр. ivan_petrov" value="${escapeHtml(conv.parent_contact || '')}">
+            <button class="btn small secondary" onclick="saveParentContact(${id})">Сохранить</button>
+          </div>
+          <div style="font-size:12px; color:var(--muted); margin-top:6px">
+            Заполняется только с согласия — используется, если решите уведомить родителей при отправке отчёта.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="reportSection"></div>
+  `;
+}
+
+async function saveParentContact(convId) {
+  const value = document.getElementById('parentContact').value.trim();
+  await api(`/conversations/${convId}`, { method: 'PATCH', body: JSON.stringify({ parent_contact: value }) });
+  alert('Контакт сохранён');
+}
+
+function toggleEdit(msgId) {
+  const ta = document.getElementById(`edit-${msgId}`);
+  const btn = document.getElementById(`sendEditBtn-${msgId}`);
+  ta.style.display = ta.style.display === 'none' ? 'block' : 'none';
+  btn.style.display = btn.style.display === 'none' ? 'inline-block' : 'none';
+}
+
+async function sendMessage(convId, msgId, text) {
+  await api(`/conversations/${convId}/messages/${msgId}/send`, { method: 'POST', body: JSON.stringify({ text }) });
+  openConversation(convId);
+}
+
+async function sendEdited(convId, msgId) {
+  const text = document.getElementById(`edit-${msgId}`).value;
+  await sendMessage(convId, msgId, text);
+}
+
+async function skipMessage(convId, msgId) {
+  await api(`/conversations/${convId}/messages/${msgId}/skip`, { method: 'POST' });
+  openConversation(convId);
+}
+
+async function showReport(convId) {
+  try {
+    const r = await api(`/conversations/${convId}/report`);
+    document.getElementById('reportSection').innerHTML = `
+      <div class="panel" style="margin-top:18px">
+        <h3>Отчёт (черновик)</h3>
+        <div class="report-box">${escapeHtml(r.content)}</div>
+        <div style="margin-top:12px; display:flex; align-items:center; gap:10px">
+          <label style="font-size:13px; display:flex; align-items:center; gap:6px">
+            <input type="checkbox" id="alsoParent"> также отправить родителям (если контакт указан выше)
+          </label>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn" onclick="sendReport(${convId})">Сформировать и отправить отчёт</button>
+        </div>
+        <div class="send-results" id="sendResults"></div>
+      </div>
+    `;
+  } catch (e) {
+    alert('Не удалось сформировать отчёт: ' + e.message + '\n\nПроверьте окно терминала с backend — там должен быть подробный текст ошибки.');
+  }
+}
+
+async function sendReport(convId) {
+  const alsoParent = document.getElementById('alsoParent').checked;
+  const resultsBox = document.getElementById('sendResults');
+  resultsBox.textContent = 'Отправка...';
+  try {
+    const r = await api(`/conversations/${convId}/report/send`, {
+      method: 'POST',
+      body: JSON.stringify({ also_send_to_parent: alsoParent }),
+    });
+    const adminStatus = r.results.admin === 'ok'
+      ? '<span class="ok">✓ Отправлено админу Qalqan</span>'
+      : `<span class="err">✗ Админ: ${escapeHtml(r.results.admin)}</span>`;
+    let parentStatus = '';
+    if (alsoParent) {
+      parentStatus = r.results.parent === 'ok'
+        ? '<br><span class="ok">✓ Отправлено родителям</span>'
+        : `<br><span class="err">✗ Родители: ${escapeHtml(r.results.parent)}</span>`;
+    }
+    resultsBox.innerHTML = adminStatus + parentStatus;
+  } catch (e) {
+    resultsBox.innerHTML = `<span class="err">Ошибка отправки: ${escapeHtml(e.message)}</span>`;
+  }
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s || '';
+  return div.innerHTML;
+}
+
+function connectWs() {
+  const ws = new WebSocket(API_BASE.replace('http', 'ws') + '/ws');
+  ws.onmessage = () => {
+    loadConversations();
+    if (currentConvId) openConversation(currentConvId);
+  };
+  ws.onclose = () => setTimeout(connectWs, 3000);
+}
+
+checkStatus();
+setInterval(checkStatus, 15000);
+</script>
+
+</body>
+</html>
