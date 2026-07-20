@@ -186,7 +186,7 @@
 </div>
 
 <script>
-const API_BASE = 'http://127.0.0.1:8000'; // адрес backend-сервера. Если запускаете uvicorn на другом порту/хосте — поменяйте здесь.
+const API_BASE = window.location.origin; // теперь дашборд и backend на одном адресе — работает само
 let currentConvId = null;
 let phoneCodeHash = null;
 let phoneNumber = null;
