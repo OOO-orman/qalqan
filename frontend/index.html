@@ -4,10 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Qalqan — панель мониторинга</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --navy: #0B1250;
     --navy-2: #141c66;
+    --accent: #4C5FF5;
     --paper: #F5F6FA;
     --white: #ffffff;
     --ink: #0B1250;
@@ -17,26 +20,32 @@
     --safe: #2FAE6B;
     --line: #e2e4f0;
     --radius: 14px;
+    --font-display: 'Space Grotesk', system-ui, sans-serif;
+    --font-body: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-body);
     background: var(--paper);
     color: var(--ink);
   }
   .topbar {
-    background: var(--navy);
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
     color: white;
     padding: 18px 28px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(11,18,80,0.18);
+    position: relative;
+    z-index: 5;
   }
   .brand {
-    font-weight: 900;
+    font-family: var(--font-display);
+    font-weight: 700;
     font-size: 22px;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -51,8 +60,11 @@
     padding: 6px 14px;
     border-radius: 999px;
     background: rgba(255,255,255,0.12);
+    transition: background 0.25s ease;
+    display: flex; align-items: center; gap: 6px;
   }
   .status-pill.online { background: rgba(47,174,107,0.25); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.7; }
   .layout {
     display: grid;
     grid-template-columns: 340px 1fr;
@@ -155,6 +167,41 @@
     .login-box { margin: 24px 16px; max-width: none; }
     .msg { max-width: 90%; }
   }
+
+  /* --- Загрузка / состояния --- */
+  .spinner {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35); border-top-color: white;
+    display: inline-block; animation: spin 0.7s linear infinite; vertical-align: -3px;
+  }
+  .spinner.dark { border: 2px solid rgba(11,18,80,0.2); border-top-color: var(--navy); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-inline {
+    display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);
+    padding: 10px 0;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, #eef0f8 25%, #f7f8fc 37%, #eef0f8 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 8px;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+  @keyframes flashNew {
+    0% { background: #fff4de; }
+    100% { background: white; }
+  }
+  .conv-item.flash { animation: flashNew 1.6s ease; }
+
+  .btn[disabled] { opacity: 0.65; cursor: not-allowed; }
+
+  .panel, .thread { transition: box-shadow 0.2s ease; }
+  .panel:hover, .thread:hover { box-shadow: 0 2px 14px rgba(11,18,80,0.06); }
+
+  .conv-title, h2, h3.section-title { font-family: var(--font-display); }
 </style>
 </head>
 <body>
@@ -308,6 +355,7 @@ async function loadConversations() {
   convs.forEach(c => {
     const div = document.createElement('div');
     div.className = 'conv-item' + (c.id === currentConvId ? ' active' : '');
+    div.dataset.convId = c.id;
     div.onclick = () => openConversation(c.id);
     const dangerMark = (c.risk_level >= highRiskThreshold) ? ' ⚠️' : '';
     div.innerHTML = `
@@ -338,8 +386,15 @@ async function importHistory() {
 async function openConversation(id) {
   currentConvId = id;
   loadConversations();
-  const conv = await api(`/conversations/${id}`);
   const main = document.getElementById('mainPanel');
+  main.innerHTML = `<div class="loading-inline"><span class="spinner dark"></span> Загружаю переписку...</div>`;
+  let conv;
+  try {
+    conv = await api(`/conversations/${id}`);
+  } catch (e) {
+    main.innerHTML = `<div class="empty-state">Не удалось загрузить переписку: ${escapeHtml(e.message)}</div>`;
+    return;
+  }
 
   const messagesHtml = conv.messages.map(m => {
     if (m.status === 'suggested') {
@@ -420,8 +475,15 @@ function toggleEdit(msgId) {
 }
 
 async function sendMessage(convId, msgId, text) {
-  await api(`/conversations/${convId}/messages/${msgId}/send`, { method: 'POST', body: JSON.stringify({ text }) });
-  openConversation(convId);
+  const btn = window.event ? window.event.target : null;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner dark"></span> Отправка...'; }
+  try {
+    await api(`/conversations/${convId}/messages/${msgId}/send`, { method: 'POST', body: JSON.stringify({ text }) });
+    openConversation(convId);
+  } catch (e) {
+    alert('Не удалось отправить сообщение: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Повторить отправку'; }
+  }
 }
 
 async function sendEdited(convId, msgId) {
@@ -430,8 +492,15 @@ async function sendEdited(convId, msgId) {
 }
 
 async function skipMessage(convId, msgId) {
-  await api(`/conversations/${convId}/messages/${msgId}/skip`, { method: 'POST' });
-  openConversation(convId);
+  const btn = window.event ? window.event.target : null;
+  if (btn) { btn.disabled = true; }
+  try {
+    await api(`/conversations/${convId}/messages/${msgId}/skip`, { method: 'POST' });
+    openConversation(convId);
+  } catch (e) {
+    alert('Ошибка: ' + e.message);
+    if (btn) { btn.disabled = false; }
+  }
 }
 
 async function showReport(convId) {
@@ -489,8 +558,17 @@ function escapeHtml(s) {
 
 function connectWs() {
   const ws = new WebSocket(API_BASE.replace('http', 'ws') + '/ws');
-  ws.onmessage = () => {
-    loadConversations();
+  ws.onmessage = async (event) => {
+    let data = {};
+    try { data = JSON.parse(event.data); } catch (e) { /* ignore */ }
+    await loadConversations();
+    if (data.conversation_id) {
+      const item = document.querySelector(`.conv-item[data-conv-id="${data.conversation_id}"]`);
+      if (item) {
+        item.classList.add('flash');
+        setTimeout(() => item.classList.remove('flash'), 1600);
+      }
+    }
     if (currentConvId) openConversation(currentConvId);
   };
   ws.onclose = () => setTimeout(connectWs, 3000);
