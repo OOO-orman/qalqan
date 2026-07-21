@@ -1,20 +1,19 @@
 @echo off
-chcp 65001 >nul
 echo ===============================================
-echo   Qalqan - первоначальная настройка
+echo   Qalqan - First-time setup
 echo ===============================================
 echo.
 
 cd /d "%~dp0backend"
 
 if not exist venv (
-    echo Создаю виртуальное окружение...
+    echo Creating virtual environment...
     py -3.12 -m venv venv
     if errorlevel 1 (
         echo.
-        echo ОШИБКА: не удалось создать venv через "py -3.12".
-        echo Убедитесь, что установлен Python 3.12 (python.org/downloads,
-        echo версия 3.12.x, НЕ 3.13/3.14 - см. README).
+        echo ERROR: could not create venv using "py -3.12".
+        echo Make sure Python 3.12 is installed ^(python.org/downloads,
+        echo version 3.12.x - NOT 3.13/3.14, see README^).
         pause
         exit /b 1
     )
@@ -22,27 +21,27 @@ if not exist venv (
 
 call venv\Scripts\activate.bat
 
-echo Устанавливаю библиотеки (может занять пару минут)...
+echo Installing dependencies, this may take a minute...
 pip install -r requirements.txt
 
 if not exist .env (
     echo.
-    echo Создаю файл .env из шаблона...
+    echo Creating .env from template...
     copy .env.example .env >nul
     echo.
-    echo Сейчас откроется .env в Блокноте - впишите туда ваши ключи
-    echo ^(Gemini/OpenAI, Telegram API_ID/HASH, номер телефона, ADMIN_TELEGRAM_USERNAME^)
-    echo и СОХРАНИТЕ файл ^(Ctrl+S^), затем закройте Блокнот.
+    echo Notepad will open now - fill in your keys there
+    echo ^(Gemini/OpenAI, Telegram API_ID/HASH, phone number, ADMIN_TELEGRAM_USERNAME^)
+    echo then SAVE the file ^(Ctrl+S^) and close Notepad.
     pause
     notepad .env
 ) else (
     echo.
-    echo Файл .env уже существует - пропускаю.
+    echo .env already exists - skipping.
 )
 
 echo.
 echo ===============================================
-echo   Настройка завершена!
-echo   Теперь запускайте файл start.bat для работы.
+echo   Setup complete!
+echo   Now run start.bat to launch Qalqan.
 echo ===============================================
 pause
